@@ -1,4 +1,4 @@
-# General USe
+# General Use
 
 These are general Python functions I use. 
 
