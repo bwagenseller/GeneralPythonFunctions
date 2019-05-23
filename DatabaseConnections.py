@@ -80,8 +80,18 @@ class DatabaseConnection(object):
 			#if printProgressToScreen is a boolean
 			self.printProgressToScreen = printProgressToScreen
 		else:
-			self.PrintTimestampedMsg("Warning - 'printProgressToScreen' is not a boolean; setting to False")
+			#took this out as we need self.useUTC set as well
+			#self.PrintTimestampedMsg("Warning - 'printProgressToScreen' is not a boolean; setting to False")
 			self.printProgressToScreen = False
+			
+			
+		if (type(useUTC).__name__ == 'bool'):
+			#if useUTC is a boolean
+			self.useUTC = useUTC
+		else:
+			self.useUTC = False		
+			self.PrintTimestampedMsg("Warning - 'useUTC' is not a boolean; setting to False")
+						
 									
 		#check to see if anything is set to '', which is not allowed; if so set to the default
 		if (hostName != ''): 
@@ -125,6 +135,7 @@ class DatabaseConnection(object):
 		else:
 			self.poolName = "mypool"
 
+
 		if (unicode(str(port)).isnumeric() & isinstance(port, int)):
 			#if port is a number and an integer, set it
 			if ((port >= 0) & (port <= 65535)):
@@ -139,13 +150,6 @@ class DatabaseConnection(object):
 			
 			self.port = None
 			
-
-		if (type(useUTC).__name__ == 'bool'):
-			#if useUTC is a boolean
-			self.useUTC = useUTC
-		else:
-			self.PrintTimestampedMsg("Warning - 'useUTC' is not a boolean; setting to False")
-			self.useUTC = False			
 			
 		if (unicode(str(poolSize)).isnumeric() & isinstance(poolSize, int)):
 			#if poolSize is a number and an integer, set it
@@ -335,8 +339,8 @@ class DatabaseConnection(object):
 		"""
 		connSuccessful = False
 		
-		if (vendor == 'MySQL'): connSuccessful = self.GetMySQLConnection(self, hostName = hostName, userName = userName, userPass = userPass, userDatabase = userDatabase, port = port, poolName = poolName, poolSize = poolSize)
-		elif (vendor == 'Oracle'): connSuccessful = self.GetOracleConnection(self, hostName = hostName, userName = userName, userPass = userPass, oracleServiceName = oracleServiceName, dsn = dsn, port = port)
+		if (vendor == 'MySQL'): connSuccessful = self.GetMySQLConnection(hostName = hostName, userName = userName, userPass = userPass, userDatabase = userDatabase, port = port, poolName = poolName, poolSize = poolSize)
+		elif (vendor == 'Oracle'): connSuccessful = self.GetOracleConnection(hostName = hostName, userName = userName, userPass = userPass, oracleServiceName = oracleServiceName, dsn = dsn, port = port)
 		else:
 			self.PrintTimestampedMsg("Warning - unknown database vendor '{}'; exiting.".format(vendor))
 			
@@ -356,7 +360,7 @@ class DatabaseConnection(object):
 		Sets:
 			self.cnx_
 		"""
-		
+				
 		#set the above parameters
 		self.TieredParameterSet(hostName = hostName, userName = userName, userPass = userPass, userDatabase = userDatabase, port = port, poolName = poolName, poolSize = poolSize)
 				
@@ -370,13 +374,13 @@ class DatabaseConnection(object):
 		
 		if(self.port is None):
 			self.port = 3306
-			self.printProgressToScreen("Warning - no port set; assuming 3306.") 
+			self.PrintTimestampedMsg("Warning - no port set; assuming 3306.") 
 
 		#If there is no valid hostname, username, or password, quit
 		if ((self.hostName is None) | (self.userName is None) | (self.userPass is None)):
-			if (self.hostName is None): self.printProgressToScreen("Warning - no MySQL hostname given; exiting.")
-			if (self.userName is None): self.printProgressToScreen("Warning - no MySQL username given; exiting.")
-			if (self.userPass is None): self.printProgressToScreen("Warning - no MySQL password given; exiting.")
+			if (self.hostName is None): self.PrintTimestampedMsg("Warning - no MySQL hostname given; exiting.")
+			if (self.userName is None): self.PrintTimestampedMsg("Warning - no MySQL username given; exiting.")
+			if (self.userPass is None): self.PrintTimestampedMsg("Warning - no MySQL password given; exiting.")
 			
 			return False
 		
@@ -440,14 +444,14 @@ class DatabaseConnection(object):
 		
 		if(self.port is None):
 			self.port = 1521
-			self.printProgressToScreen("Warning - no port set; assuming 1521.") 
+			self.PrintTimestampedMsg("Warning - no port set; assuming 1521.") 
 
 		#If there is no valid hostname, username, or password, quit
 		if (((self.dsn is None) & (self.oracleServiceName is None)) | ((self.dsn is None) & (self.hostName is None)) | (self.userName is None) | (self.userPass is None) | (self.oracleServiceName is None)):
-			if (self.userName is None): self.printProgressToScreen("Warning - no Oracle username given; exiting.")
-			if (self.userPass is None): self.printProgressToScreen("Warning - no Oracle password given; exiting.")
-			if ((self.dsn is None) & (self.oracleServiceName is None)): self.printProgressToScreen("Warning - no Oracle service name given; exiting.")
-			if ((self.dsn is None) & (self.hostName is None)): self.printProgressToScreen("Warning - no Oracle hostname nor dsn given; exiting.")			
+			if (self.userName is None): self.PrintTimestampedMsg("Warning - no Oracle username given; exiting.")
+			if (self.userPass is None): self.PrintTimestampedMsg("Warning - no Oracle password given; exiting.")
+			if ((self.dsn is None) & (self.oracleServiceName is None)): self.PrintTimestampedMsg("Warning - no Oracle service name given; exiting.")
+			if ((self.dsn is None) & (self.hostName is None)): self.PrintTimestampedMsg("Warning - no Oracle hostname nor dsn given; exiting.")			
 			
 			return False
 		
@@ -506,7 +510,14 @@ class DatabaseConnection(object):
 		else:
 			self.PrintTimestampedMsg('Warning - not an Oracle connection. Cannot set the Oracle date format.')
 				
-		return dateFormatSuccess				
+		return dateFormatSuccess	
+	
+	def ReturnConnection(self):
+		"""
+		This function simply returns the connection object; this should only be used if it does not make sense to use AttemptChangeQuery(), AttemptDataFrameUpload(), 
+		or GetResultsInDataFrame()
+		""" 
+		return self.cnx_			
 	
 	def TestConnection(self):
 		"""
@@ -524,7 +535,53 @@ class DatabaseConnection(object):
 		else:
 			if (successPhrase == 'WarNeverChanges'): success = True
 			
-		return success			
+		return success		
+	
+	def GetRecordCount(self, schema, table, WHERE = '', GROUPBY = ''):
+		"""
+		The point of this is to return a record count given a schema name, table name, and WHERE clause.
+		
+		"""	
+		
+		retVal = 0
+		myCursor = self.cnx_.cursor()
+		
+		
+		
+		try:
+			SQL = "SELECT COUNT(*) myCount FROM `" + schema + "`.`" + table + "`"
+			if(WHERE != ''): SQL = SQL + " WHERE " + WHERE
+			if(GROUPBY != ''): SQL = SQL + " GROUP BY " + GROUPBY  
+			myCursor.execute(SQL)					
+			for (myCount) in myCursor: retVal = myCount[0]
+			#it is CRITICAL to close the cursor once you are done with it!
+			myCursor.close()
+		except: 
+			pass
+		
+		return retVal		
+	
+	def GetIdentifier(self, schema, table, recordField, WHERE = ''):
+		"""
+		The point of this is to return a single field that identifies a row / record given a schema name, table name, and WHERE clause.
+		
+		"""	
+		
+		retVal = 0
+		myCursor = self.cnx_.cursor()
+		
+		try:
+			SQL = "SELECT " + recordField + " myRecord FROM `" + schema + "`.`" + table + "`"
+			if(WHERE != ''): SQL = SQL + " WHERE " + WHERE
+  
+			myCursor.execute(SQL)					
+			for (myRecord) in myCursor: retVal = myRecord[0]
+			#it is CRITICAL to close the cursor once you are done with it!
+			myCursor.close()
+		except: 
+			pass
+		
+		return retVal		
 			
 	def PrintTimestampedMsg(self, myMsg = "NULL", printToFile = None):
 		"""
@@ -593,7 +650,21 @@ class DatabaseConnection(object):
 					
 			return connectionEngineSuccess				
 		
+	def GetResultsInDataFrame(self, SQL):
+		"""This accepts a SQL query and returns the result as a Pandas DataFrame."""
 		
+		retVal = None
+		try:
+			retVal = pd.read_sql(sql=SQL, con=self.cnx_)
+		except mysql.connector.Error as err:
+			self.PrintTimestampedMsg("SQL Error: {}".format(err))
+			retVal = None
+		except:
+			self.PrintTimestampedMsg("SQL Error with query: {}".format(SQL))
+			retVal = None
+						
+		return retVal 
+			
 	def AttemptChangeQuery(self, SQL_Statement, SQL_Data=None, seqNum = None):
 		
 		"""
@@ -1007,7 +1078,7 @@ class DatabaseConnection(object):
 				self.SendEmail(ADMIN_EMAIL_ADDRS,"Query Failure", Body, 1)
 				self.SendEmail(ADMIN_TEXT_ADDRS,"Query Failure", TxtBody, 1)
 				
-	def MultishotQuery(self, QueriesToRun, Descriptions = None):
+	def MultishotQuery(self, QueriesToRun, Descriptions = None, TurnOnDescriptions = False):
 		"""
 		This function is built to handle a list of queries to be run in succession. Note it can NOT handle SELECT queries. 
 	
@@ -1015,6 +1086,7 @@ class DatabaseConnection(object):
 		QueriesToRun (required) - A list containing the queries you wish to run.  They are launched in the order as presented in this list.
 		Descriptions (optional, but recommended) - A list containing the descriptions of the queries you wish to run.  They should be in the same order as the queries.
 			These are optional, however without them it could get confusing.
+		TurnOnDescriptions - This will override the self.printProgressToScreen option; this is useful as if this is loading thousands of queries we may not want to see that (while still seeing other diagnostic messages)
 		
 		what is returned - Two variables are returned
 			the first is a boolean which indicates if it was successful or not. Note a 'success' counts as all queries running.
@@ -1025,6 +1097,9 @@ class DatabaseConnection(object):
 		"""
 		
 		pleaseContinue = 1
+		
+		restorePrintProgressToScreen = self.printProgressToScreen
+		self.printProgressToScreen = TurnOnDescriptions
 		
 		#check to make sure the queries and descriptions have the same number of elements
 		if (QueriesToRun is None):
@@ -1066,12 +1141,15 @@ class DatabaseConnection(object):
 			#if all queries ran successfully
 			if (results.shape[0] == 0):
 				self.PrintTimestampedMsg("All queries ran successfully...")
+				self.printProgressToScreen = restorePrintProgressToScreen
 				return True, results
 			else:
 				#if at least one query failed
 				self.PrintTimestampedMsg("WARNING - some queries failed...")
+				self.printProgressToScreen = restorePrintProgressToScreen
 				return False, results
 		else:
+			self.printProgressToScreen = restorePrintProgressToScreen
 			return False, None
 	
 	
